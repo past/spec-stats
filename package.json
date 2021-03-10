@@ -1,0 +1,15 @@
+{
+  "name": "spec-stats",
+  "version": "1.0.0",
+  "scripts": {
+    "lint": "eslint --ignore-path .gitignore ."
+  },
+  "dependencies": {
+    "@octokit/rest": "18.3.5",
+    "browser-specs": "1.30.0"
+  },
+  "devDependencies": {
+    "eslint": "7.21.0",
+    "eslint-config-google": "0.14.0"
+  }
+}
