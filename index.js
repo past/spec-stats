@@ -2,17 +2,23 @@
 
 const browserSpecs = require('browser-specs');
 const {Octokit} = require('@octokit/rest');
+const fetch = require('node-fetch');
 
 const octokit = new Octokit({
   auth: process.env.GH_TOKEN,
 });
 
 const SINCE = '2021-01-01T00:00:00Z';
+const VENDORS = ['Apple', 'Google', 'Microsoft', 'Mozilla'];
+const SPEC_DOMAIN = 'spec.whatwg.org/';
+const WHATWG_ENTITIES = 'https://raw.githubusercontent.com/whatwg/participant-data/main/entities.json';
 
 function listRepositories() {
   const repoSet = new Set();
   for (const spec of browserSpecs) {
-    repoSet.add(spec.nightly.repository);
+    if (spec.nightly.url.endsWith(SPEC_DOMAIN)) {
+      repoSet.add(spec.nightly.repository);
+    }
   }
   const repos = Array.from(repoSet);
   repos.sort();
@@ -49,8 +55,39 @@ function listEvents(options, issue) {
   return octokit.paginate(listOptions);
 }
 
+async function isVendorMember(username) {
+  for (const org of VENDORS) {
+    try {
+      await octokit.orgs.checkPublicMembershipForUser({ org, username });
+      console.debug(`${username} is a member of ${org}`);
+      return true;
+    } catch (e) { /* Ignore */ }
+  }
+  console.debug(`${username} is not a member of a browser vendor`);
+  return false;
+}
+
+function getVendorMap() {
+  return fetch(WHATWG_ENTITIES).then(resp => resp.json()).then(entities => {
+    const map = new Map();
+    for (const vendor of VENDORS) {
+      for (const entity of entities) {
+        if (entity.info.name.startsWith(vendor)) {
+          map.set(vendor, entity.info.gitHubOrganization);
+          break;
+        }
+      }
+    }
+    return map;
+  });
+}
+
 async function main() {
   const repos = listRepositories();
+
+  // Get the GH orgs for the vendors.
+  const vendorOrgs = await getVendorMap();
+  console.debug(vendorOrgs);
 
   for (const repo of repos) {
     const options = optionsFromURL(repo);
@@ -61,7 +98,10 @@ async function main() {
 
     const issues = await listIssues(options);
     for (const issue of issues) {
-      // TODO: measure something about each issue. Potentially interesting:
+      // Only users from browser vendors count.
+      if (!await isVendorMember(issue.user.login)) {
+        continue;
+      }
 
       const events = await listEvents(options, issue);
       const firstInterestingEvent = events.find((event) => {

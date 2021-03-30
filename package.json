@@ -2,7 +2,8 @@
   "name": "spec-stats",
   "version": "1.0.0",
   "scripts": {
-    "lint": "eslint --ignore-path .gitignore ."
+    "lint": "eslint --ignore-path .gitignore .",
+    "start": "node index.js"
   },
   "dependencies": {
     "@octokit/rest": "18.3.5",
