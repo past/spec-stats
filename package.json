@@ -5,7 +5,7 @@
     "lint": "eslint --ignore-path .gitignore ."
   },
   "dependencies": {
-    "@octokit/rest": "18.3.5",
+    "@octokit/rest": "18.5.2",
     "browser-specs": "1.30.0"
   },
   "devDependencies": {
