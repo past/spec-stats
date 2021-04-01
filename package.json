@@ -6,7 +6,7 @@
   },
   "dependencies": {
     "@octokit/rest": "18.3.5",
-    "browser-specs": "1.30.0"
+    "browser-specs": "1.33.0"
   },
   "devDependencies": {
     "eslint": "7.21.0",
