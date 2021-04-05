@@ -27,11 +27,13 @@ const octokit = new MyOctokit({
   },
 });
 
-const SINCE = '2021-01-01T00:00:00Z';
+const SINCE = '2021-04-01T00:00:00Z';
 const VENDORS = ['Apple', 'Google', 'Microsoft', 'Mozilla'];
 const SPEC_DOMAIN = 'spec.whatwg.org/';
 const WHATWG_ENTITIES = 'https://raw.githubusercontent.com/whatwg/participant-data/main/entities.json';
 const responseTimes = new Map();
+const vendorMembers = new Map();
+const UNKNOWN_ORG = "unaffiliated";
 
 function listRepositories() {
   const repoSet = new Set();
@@ -75,16 +77,21 @@ function listEvents(options, issue) {
   return octokit.paginate(listOptions);
 }
 
-async function getVendorMember(username) {
-  for (const org of VENDORS) {
+async function getVendorMember(username, vendors) {
+  if (vendorMembers.has(username)) {
+    return vendorMembers.get(username);
+  }
+  for (const org of vendors) {
     try {
-      await octokit.orgs.checkPublicMembershipForUser({ org, username });
+      await octokit.orgs.checkMembershipForUser({ org, username });
       console.debug(`${username} is a member of ${org}`);
+      vendorMembers.set(username, org);
       return org;
     } catch (e) { /* Ignore */ }
   }
   console.debug(`${username} is not a member of a browser vendor`);
-  return "unknown";
+  vendorMembers.set(username, UNKNOWN_ORG);
+  return UNKNOWN_ORG;
 }
 
 function getVendorMap() {
@@ -93,11 +100,12 @@ function getVendorMap() {
     for (const vendor of VENDORS) {
       for (const entity of entities) {
         if (entity.info.name.startsWith(vendor)) {
-          map.set(vendor, entity.info.gitHubOrganization);
+          map.set(entity.info.gitHubOrganization, vendor);
           break;
         }
       }
     }
+    map.set(UNKNOWN_ORG, UNKNOWN_ORG);
     return map;
   });
 }
@@ -126,7 +134,7 @@ async function main() {
     const issues = await listIssues(options);
     for (const issue of issues) {
       // Only users from browser vendors count.
-      const vendor = await getVendorMember(issue.user.login);
+      const vendor = await getVendorMember(issue.user.login, vendorOrgs.keys());
       if (!vendor) {
         continue;
       }
@@ -159,17 +167,31 @@ async function main() {
     }
   }
 
+  // Display the average delay per vendor.
   for (const vendor of responseTimes.keys()) {
     const times = responseTimes.get(vendor);
     const vendorAvgDelay = times.reduce((a, b) => a + b) / times.length;
-    console.log(`Average delay for ${vendor} issues is ${vendorAvgDelay}`);
+    console.log(`Average delay for ${vendorOrgs.get(vendor)} issues is ${vendorAvgDelay}`);
   }
-  const totalTimes = [];
+  // Display the total average delay.
+  let totalTimes = [];
   for (const times of responseTimes.values()) {
-    totalTimes.concat(times);
+    totalTimes = totalTimes.concat(times);
   }
   const totalAvgDelay = totalTimes.reduce((a, b) => a + b) / totalTimes.length;
   console.log(`Total average delay ${totalAvgDelay}`);
+  // Display vendor membership stats.
+  const vendorStats = new Map();
+  for (const entry of vendorMembers.entries()) {
+    if (!vendorStats.has(entry[1])) {
+      vendorStats.set(entry[1], []);
+    }
+    vendorStats.get(entry[1]).push(entry[0]);
+  }
+  for (const vendor of vendorStats.keys()) {
+    console.log(`${vendorOrgs.get(vendor)} has ${vendorStats.get(vendor).length} members`);
+    console.log(vendorStats.get(vendor));
+  }
 }
 
 if (require.main === module) {
