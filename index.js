@@ -5,29 +5,30 @@ const fetch = require('node-fetch');
 const { Octokit } = require('@octokit/rest');
 const { retry } = require("@octokit/plugin-retry");
 const { throttling } = require("@octokit/plugin-throttling");
-const MyOctokit = Octokit.plugin(retry, throttling);
+const MyOctokit = Octokit.plugin(throttling, retry);
 
 const octokit = new MyOctokit({
   auth: process.env.GH_TOKEN,
   userAgent: 'past/spec-stats',
+  log: console,
   throttle: {
-    onRateLimit: (retryAfter, options) => {
-      octokit.log.warn(
-        `Request quota exhausted for request to ${options.url}`
-      );
-      octokit.log.warn(
-        `Retry#${options.request.retryCount + 1} after ${retryAfter} seconds!`
-      );
+    onRateLimit: (retryAfter, options, octokit) => {
+      // Don't retry exepected misses from getVendorMember().
+      if (options.url.startsWith('/orgs')) {
+        return false;
+      }
+      octokit.log.warn(`Request quota exhausted for request to ${options.url}`);
+      octokit.log.warn(`Retry#${options.request.retryCount + 1} after ${retryAfter} seconds!`);
       return true;
     },
-    onAbuseLimit: (retryAfter, options) => {
+    onAbuseLimit: (retryAfter, options, octokit) => {
       // Don't retry, only log an error.
       octokit.log.warn(`Abuse detected for request to ${options.url}!`);
     },
   },
 });
 
-const SINCE = '2021-04-01T00:00:00Z';
+const SINCE = '2021-01-01T00:00:00Z';
 const VENDORS = ['Apple', 'Google', 'Microsoft', 'Mozilla'];
 const SPEC_DOMAIN = 'spec.whatwg.org/';
 const WHATWG_ENTITIES = 'https://raw.githubusercontent.com/whatwg/participant-data/main/entities.json';
@@ -84,12 +85,10 @@ async function getVendorMember(username, vendors) {
   for (const org of vendors) {
     try {
       await octokit.orgs.checkMembershipForUser({ org, username });
-      console.debug(`${username} is a member of ${org}`);
       vendorMembers.set(username, org);
       return org;
     } catch (e) { /* Ignore */ }
   }
-  console.debug(`${username} is not a member of a browser vendor`);
   vendorMembers.set(username, UNKNOWN_ORG);
   return UNKNOWN_ORG;
 }
