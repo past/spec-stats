@@ -10,13 +10,8 @@ const MyOctokit = Octokit.plugin(throttling, retry);
 const octokit = new MyOctokit({
   auth: process.env.GH_TOKEN,
   userAgent: 'past/spec-stats',
-  log: console,
   throttle: {
     onRateLimit: (retryAfter, options, octokit) => {
-      // Don't retry exepected misses from getVendorMember().
-      if (options.url.startsWith('/orgs')) {
-        return false;
-      }
       octokit.log.warn(`Request quota exhausted for request to ${options.url}`);
       octokit.log.warn(`Retry#${options.request.retryCount + 1} after ${retryAfter} seconds!`);
       return true;
@@ -169,16 +164,16 @@ async function main() {
   // Display the average delay per vendor.
   for (const vendor of responseTimes.keys()) {
     const times = responseTimes.get(vendor);
-    const vendorAvgDelay = times.reduce((a, b) => a + b) / times.length;
-    console.log(`Average delay for ${vendorOrgs.get(vendor)} issues is ${vendorAvgDelay}`);
+    const vendorAvgDelay = Math.floor(times.reduce((a, b) => a + b) / times.length);
+    console.log(`Average delay for ${vendorOrgs.get(vendor)} issues is ${vendorAvgDelay} days`);
   }
   // Display the total average delay.
   let totalTimes = [];
   for (const times of responseTimes.values()) {
     totalTimes = totalTimes.concat(times);
   }
-  const totalAvgDelay = totalTimes.reduce((a, b) => a + b) / totalTimes.length;
-  console.log(`Total average delay ${totalAvgDelay}`);
+  const totalAvgDelay = Math.floor(totalTimes.reduce((a, b) => a + b) / totalTimes.length);
+  console.log(`Total average delay is ${totalAvgDelay} days`);
   // Display vendor membership stats.
   const vendorStats = new Map();
   for (const entry of vendorMembers.entries()) {
