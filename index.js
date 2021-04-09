@@ -10,6 +10,9 @@ const MyOctokit = Octokit.plugin(throttling, retry);
 const octokit = new MyOctokit({
   auth: process.env.GH_TOKEN,
   userAgent: 'past/spec-stats',
+  // retries: 5,
+  // retryAfter: 60,
+  // log: console,
   throttle: {
     onRateLimit: (retryAfter, options, octokit) => {
       octokit.log.warn(`Request quota exhausted for request to ${options.url}`);
@@ -78,6 +81,9 @@ async function getVendorMember(username, vendors) {
     return vendorMembers.get(username);
   }
   for (const org of vendors) {
+    if (org === UNKNOWN_ORG) {
+      continue;
+    }
     try {
       await octokit.orgs.checkMembershipForUser({ org, username });
       vendorMembers.set(username, org);
