@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const browserSpecs = require('browser-specs');
 const fetch = require('node-fetch');
 const { Octokit } = require('@octokit/rest');
@@ -15,13 +16,13 @@ const octokit = new MyOctokit({
   // log: console,
   throttle: {
     onRateLimit: (retryAfter, options, octokit) => {
-      octokit.log.warn(`Request quota exhausted for request to ${options.url}`);
-      octokit.log.warn(`Retry#${options.request.retryCount + 1} after ${retryAfter} seconds!`);
+      console.warn(`Request quota exhausted for request to ${options.url}`);
+      console.warn(`Retry#${options.request.retryCount + 1} after ${retryAfter} seconds!`);
       return true;
     },
     onAbuseLimit: (retryAfter, options, octokit) => {
       // Don't retry, only log an error.
-      octokit.log.warn(`Abuse detected for request to ${options.url}!`);
+      console.warn(`Abuse detected for request to ${options.url}!`);
     },
   },
 });
@@ -94,6 +95,20 @@ async function getVendorMember(username, vendors) {
   return UNKNOWN_ORG;
 }
 
+async function initVendorMembers(vendorOrgs) {
+  const config = JSON.parse(
+    await fs.promises.readFile("config.json", { encoding: "utf8" })
+  );
+  for (const [username, org] of Object.entries(config)) {
+    for (const vendor of vendorOrgs.keys()) {
+      if (org === vendorOrgs.get(vendor)) {
+        vendorMembers.set(username, vendor);
+        break;
+      }
+    }
+  }
+}
+
 function getVendorMap() {
   return fetch(WHATWG_ENTITIES).then(resp => resp.json()).then(entities => {
     const map = new Map();
@@ -123,7 +138,9 @@ async function main() {
 
   // Get the GH orgs for the vendors.
   const vendorOrgs = await getVendorMap();
-
+  // Initialize the vendor members map with some otherwise unaffiliated members.
+  await initVendorMembers(vendorOrgs);
+  
   for (const repo of repos) {
     const options = optionsFromURL(repo);
     if (!options) {
